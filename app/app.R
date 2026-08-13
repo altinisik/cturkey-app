@@ -48,7 +48,20 @@ plot_custom_cal <- function(x, ind=1, id="Sample", calendar="BCAD", bw=FALSE, ca
   axis(1, at=xticks, labels=xtick_labels, las=2, cex.axis=cex.axis, col=pal$text)
   axis(4, cex.axis=cex.axis, col=pal$text)
   mtext("Probability Density", side=4, line=4, cex=cex.lab, col=pal$text)
-  mtext(if(calendar=="BCAD") "Years cal BCE/CE" else "Years cal BP", side=1, line=4.5, cex=cex.lab)
+  #mtext(if(calendar=="BCAD") "Years cal BCE/CE" else "Years cal BP", side=1, line=4.5, cex=cex.lab)
+  xlab_text <- if(calendar == "BCAD") {
+    if (xlim[2] <= 0) {
+      "Years cal BCE"
+    } else if (xlim[1] >= 0) {
+      "Years cal CE"
+    } else {
+      "Years cal BCE/CE"
+    }
+  } else {
+    "Years cal BP"
+  }
+  
+  mtext(xlab_text, side=1, line=4.5, cex=cex.lab)
   
   if(xlim[1] <= 0 && xlim[2] >= 0) abline(v = 0, lty = 3, col = pal$marker)
   polygon(xvals, yvals, col=pal$main, border=if(bw) "black" else NA)
@@ -96,7 +109,7 @@ ui <- fluidPage(
       downloadButton("downloadPDF", "Download PDF", class = "btn-primary"),
       br(), br(),
       helpText("Uses rcarbon engine."),
-      helpText("Cite: Altınışık, N. E. (2026). C-Turkey: A comprehensive radiocarbon dataset from Türkiye (v0). Zenodo. https://doi.org/10.5281/zenodo.20011918")
+      helpText("Cite: Altınışık, N. E. (2026). C-Turkey: A comprehensive radiocarbon dataset from Türkiye (v1). Zenodo. https://doi.org/10.5281/zenodo.20011917")
     ),
     mainPanel(
       plotOutput("calPlot", height = "700px")
