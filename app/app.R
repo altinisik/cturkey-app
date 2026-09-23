@@ -109,7 +109,7 @@ ui <- fluidPage(
       downloadButton("downloadPDF", "Download PDF", class = "btn-primary"),
       br(), br(),
       helpText("Uses rcarbon engine."),
-      helpText("Cite: Altınışık, N. E. (2026). C-Turkey: A comprehensive radiocarbon dataset from Türkiye (v1). Zenodo. https://doi.org/10.5281/zenodo.20011917")
+      helpText("Cite: Altınışık, N.E. (2026) “C-Turkey: A Comprehensive Radiocarbon Dataset from Türkiye,” Journal of Open Archaeology Data, 14. doi:10.5334/joad.213")
     ),
     mainPanel(
       plotOutput("calPlot", height = "700px")
