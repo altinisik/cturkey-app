@@ -533,6 +533,17 @@
     }, function () { window.prompt("Copy the results:", txt); });
   });
 
+  // Pre-fill from the URL, e.g. ?id=Ankara-1&age=4520&error=35&curve=intcal20
+  // (used by the C-Turkey Dataset Explorer's "Calibrate" links).
+  (function () {
+    var qs = new URLSearchParams(location.search);
+    if (qs.get("id")) $("sample_id").value = qs.get("id");
+    if (qs.get("age") && isFinite(+qs.get("age"))) $("bp_age").value = qs.get("age");
+    if (qs.get("error") && isFinite(+qs.get("error"))) $("bp_error").value = qs.get("error");
+    if (qs.get("curve") && CURVE_LABEL[qs.get("curve")]) $("calcurve").value = qs.get("curve");
+    if (qs.get("calendar") === "BP") $("cal_bp").checked = true;
+  })();
+
   setDownloads(false);
   update();
   // Redraw once the figure font is ready, so legend spacing uses its metrics.
