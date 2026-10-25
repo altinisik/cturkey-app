@@ -1,28 +1,543 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Shiny App</title>
-    <script
-      src="./shinylive/load-shinylive-sw.js"
-      type="module"
-    ></script>
-    <script type="module">
-      import { runExportedApp } from "./shinylive/shinylive.js";
-      runExportedApp({
-        id: "root",
-        appEngine: "r",
-        relPath: "",
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>C-Turkey: Radiocarbon Calibration Tool</title>
+<meta name="description" content="Calibrate a radiocarbon date in your browser with IntCal20, SHCal20, Marine20 or IntCal13, and download publication-ready figures.">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='6' fill='%232f5d7c'/><path d='M5 24 C11 24 12 8 16 8 S21 24 27 24' fill='none' stroke='%23e67e22' stroke-width='3'/></svg>">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #e9eef2;
+    --surface: #ffffff;
+    --ink: #1f2d3a;
+    --muted: #586979;
+    --line: #cdd7df;
+    --accent: #2f5d7c;
+    --accent-ink: #ffffff;
+    --accent-soft: #dde8f0;
+    --focus: #e67e22;
+    --error: #b03a2e;
+    --radius-s: 4px;
+    --radius-m: 8px;
+    color-scheme: light;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #12181e;
+      --surface: #1a232b;
+      --ink: #e3e9ee;
+      --muted: #9aa9b6;
+      --line: #2e3b46;
+      --accent: #8fb5d3;
+      --accent-ink: #0f1a23;
+      --accent-soft: #233442;
+      --error: #f08a7e;
+      color-scheme: dark;
+    }
+  }
+  * { box-sizing: border-box; }
+  html { -webkit-text-size-adjust: 100%; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--ink);
+    font: 400 15px/1.5 "IBM Plex Sans", "Segoe UI", system-ui, -apple-system, sans-serif;
+    font-variant-numeric: tabular-nums;
+    padding: env(safe-area-inset-top, 0) env(safe-area-inset-right, 0) env(safe-area-inset-bottom, 0) env(safe-area-inset-left, 0);
+  }
+  a { color: var(--accent); text-underline-offset: 2px; }
+  :focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+
+  .wrap { max-width: 1240px; margin: 0 auto; padding: 28px 24px 40px; }
+
+  header.top { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 6px 24px; margin-bottom: 22px; }
+  header.top h1 { margin: 0; font-size: 24px; font-weight: 600; letter-spacing: -0.01em; line-height: 1.25; }
+  header.top p { margin: 4px 0 0; color: var(--muted); max-width: 62ch; }
+  header.top nav { display: flex; gap: 18px; font-size: 14px; }
+
+  .layout { display: grid; grid-template-columns: 300px minmax(0, 1fr); gap: 24px; align-items: start; }
+  @media (max-width: 860px) { .layout { grid-template-columns: 1fr; } }
+
+  .panel { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius-m); padding: 20px; }
+  .controls { display: grid; gap: 22px; }
+  @media (min-width: 861px) { .controls { position: sticky; top: 16px; } }
+  fieldset { border: 0; margin: 0; padding: 0; display: grid; gap: 12px; }
+  legend { padding: 0; margin-bottom: 10px; font-weight: 600; font-size: 14px; }
+  .field { display: grid; gap: 4px; }
+  .field label, .field .label { font-size: 13px; color: var(--muted); }
+  .row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  input[type=text], input[type=number], select {
+    width: 100%; font: inherit; color: var(--ink); background: var(--surface);
+    border: 1px solid var(--line); border-radius: var(--radius-s); padding: 7px 9px; min-height: 38px;
+  }
+  input[type=number] { font-variant-numeric: tabular-nums; }
+  input[aria-invalid=true] { border-color: var(--error); }
+  .hint { font-size: 12.5px; color: var(--muted); margin: 0; }
+  .err { font-size: 12.5px; color: var(--error); margin: 0; min-height: 0; }
+  .err:empty { display: none; }
+
+  .seg { display: grid; grid-template-columns: 1fr 1fr; border: 1px solid var(--line); border-radius: var(--radius-s); overflow: hidden; }
+  .seg input { position: absolute; opacity: 0; pointer-events: none; }
+  .seg label { text-align: center; padding: 7px 6px; cursor: pointer; font-size: 14px; color: var(--ink); }
+  .seg label:last-of-type { border-left: 1px solid var(--line); }
+  .seg input:checked + label { background: var(--accent); color: var(--accent-ink); }
+  .seg input:focus-visible + label { outline: 2px solid var(--focus); outline-offset: -2px; }
+
+  .check { display: flex; align-items: center; gap: 8px; font-size: 14px; cursor: pointer; }
+  .check input { width: 16px; height: 16px; accent-color: var(--accent); margin: 0; }
+
+  .downloads { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+  button {
+    font: inherit; font-size: 14px; font-weight: 500; cursor: pointer;
+    border-radius: var(--radius-s); padding: 8px 6px; min-height: 38px;
+    border: 1px solid var(--accent); background: var(--surface); color: var(--accent);
+  }
+  button.primary { background: var(--accent); color: var(--accent-ink); }
+  button:disabled { opacity: .5; cursor: progress; }
+  button small { display: block; font-size: 11.5px; font-weight: 400; opacity: .85; }
+
+  .figure { display: grid; gap: 16px; }
+  .plot-frame {
+    background: #ffffff; border: 1px solid var(--line); border-radius: var(--radius-m);
+    aspect-ratio: 4 / 3; display: grid; place-items: center; overflow: hidden; position: relative;
+  }
+  .plot-frame svg { width: 100%; height: 100%; display: block; }
+  .plot-msg { color: #586979; font-size: 14px; padding: 24px; text-align: center; max-width: 46ch; }
+
+  .readout { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px 20px; align-items: start; }
+  .readout h2 { margin: 0 0 6px; font-size: 14px; font-weight: 600; }
+  .readout table { border-collapse: collapse; font-size: 14px; }
+  .readout td { padding: 3px 18px 3px 0; white-space: nowrap; }
+  .readout td.p { color: var(--muted); }
+  .readout .mean td { padding-top: 8px; }
+  .readout .copy { align-self: start; }
+  .readout .meta { font-size: 13px; color: var(--muted); margin: 8px 0 0; }
+
+  footer { margin-top: 32px; padding-top: 20px; border-top: 1px solid var(--line); font-size: 13.5px; color: var(--muted); display: grid; gap: 10px; max-width: 90ch; }
+  footer p { margin: 0; }
+  footer strong { color: var(--ink); font-weight: 600; }
+
+  .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+  @media (prefers-reduced-motion: no-preference) {
+    .plot-frame svg { animation: fade .25s ease-out; }
+    @keyframes fade { from { opacity: .4; } to { opacity: 1; } }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <div>
+      <h1>C-Turkey: Radiocarbon Calibration Tool</h1>
+      <p>Calibrate a radiocarbon date in your browser and download the figure for publication.</p>
+    </div>
+    <nav aria-label="Project links">
+      <a href="https://altinisik.ezgilab.com/C-Turkey/">Dataset explorer</a>
+      <a href="https://github.com/altinisik/cturkey-app">Source code</a>
+    </nav>
+  </header>
+
+  <div class="layout">
+    <form class="panel controls" id="controls" novalidate onsubmit="return false">
+      <fieldset>
+        <legend>Date</legend>
+        <div class="field">
+          <label for="sample_id">Sample ID</label>
+          <input type="text" id="sample_id" value="Sample" autocomplete="off" spellcheck="false">
+        </div>
+        <div class="row">
+          <div class="field">
+            <label for="bp_age">Age (BP)</label>
+            <input type="number" id="bp_age" value="2000" min="0" max="55000" step="1" inputmode="numeric">
+          </div>
+          <div class="field">
+            <label for="bp_error">Error (±)</label>
+            <input type="number" id="bp_error" value="30" min="1" step="1" inputmode="numeric">
+          </div>
+        </div>
+        <p class="err" id="input_err" role="alert"></p>
+      </fieldset>
+
+      <fieldset>
+        <legend>Calibration</legend>
+        <div class="field">
+          <label for="calcurve">Curve</label>
+          <select id="calcurve">
+            <option value="intcal20">IntCal20 (N. Hemisphere)</option>
+            <option value="shcal20">SHCal20 (S. Hemisphere)</option>
+            <option value="marine20">Marine20</option>
+            <option value="intcal13">IntCal13 (superseded)</option>
+          </select>
+        </div>
+        <div class="field">
+          <span class="label" id="cal_label">Calendar</span>
+          <div class="seg" role="radiogroup" aria-labelledby="cal_label">
+            <input type="radio" name="calendar" id="cal_bcad" value="BCAD" checked><label for="cal_bcad">BCE/CE</label>
+            <input type="radio" name="calendar" id="cal_bp" value="BP"><label for="cal_bp">cal BP</label>
+          </div>
+        </div>
+        <label class="check"><input type="checkbox" id="bw_mode"> Black and white figure</label>
+      </fieldset>
+
+      <fieldset>
+        <legend>Download figure</legend>
+        <div class="downloads">
+          <button type="button" class="primary" id="dl_png">PNG<small>300 dpi</small></button>
+          <button type="button" id="dl_pdf">PDF<small>vector</small></button>
+          <button type="button" id="dl_svg">SVG<small>editable</small></button>
+        </div>
+        <p class="err" id="dl_err" role="alert"></p>
+      </fieldset>
+    </form>
+
+    <section class="figure" aria-label="Calibration result">
+      <div class="plot-frame" id="plot" role="img" aria-label="Calibration plot">
+        <p class="plot-msg" id="plot_msg">Loading the calibration curve…</p>
+      </div>
+      <div class="panel readout" id="readout" hidden>
+        <div>
+          <h2>95.4% probability ranges</h2>
+          <table id="ranges"><tbody></tbody></table>
+          <p class="meta" id="readout_meta"></p>
+        </div>
+        <button type="button" class="copy" id="copy_btn">Copy results</button>
+      </div>
+    </section>
+  </div>
+
+  <footer>
+    <p><strong>How to cite.</strong> Altınışık, N.E. (2026) “C-Turkey: A Comprehensive Radiocarbon Dataset from Türkiye,” <em>Journal of Open Archaeology Data</em>, 14. <a href="https://doi.org/10.5334/joad.213">doi:10.5334/joad.213</a></p>
+    <p><strong>Method.</strong> Calibration reproduces <code>rcarbon::calibrate()</code> and <code>rcarbon::hpdi()</code> with their default settings (normalised densities, eps = 1e-5); Crema &amp; Bevan (2021), <em>Radiocarbon</em> 63(1): 23–39. Everything runs in your browser; no data leave your computer.</p>
+    <p><strong>Curves.</strong> IntCal20: Reimer et al. 2020. SHCal20: Hogg et al. 2020. Marine20: Heaton et al. 2020 (no local ΔR applied). IntCal13: Reimer et al. 2013. All published in <em>Radiocarbon</em>.</p>
+  </footer>
+</div>
+
+<script src="fonts/plotsans.js"></script>
+<script src="curves/intcal20.js"></script>
+<script src="calibrate.js"></script>
+<script src="plot.js"></script>
+<script>
+(function () {
+  "use strict";
+
+  var $ = function (id) { return document.getElementById(id); };
+  var CURVE_LABEL = { intcal20: "IntCal20", shcal20: "SHCal20", marine20: "Marine20", intcal13: "IntCal13" };
+
+  // ---------- assets ----------
+  // Curves are plain <script> files so the page also works when opened
+  // straight from disk (file://), where fetch() is blocked.
+  var curveCache = {};
+  function loadCurve(name) {
+    if (!curveCache[name]) {
+      var have = window.C14_CURVES && window.C14_CURVES[name];
+      curveCache[name] = (have ? Promise.resolve() : loadScript("curves/" + name + ".js"))
+        .then(function () { return C14.prepareCurve(window.C14_CURVES[name]); })
+        .catch(function (e) { delete curveCache[name]; throw e; });
+    }
+    return curveCache[name];
+  }
+
+  function fromBase64(b64) {
+    var bin = atob(b64), bytes = new Uint8Array(bin.length);
+    for (var i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+    return bytes.buffer;
+  }
+
+  var fonts = { ready: false, regular: null, bold: null };
+  var fontsPromise = Promise.resolve().then(function () {
+    var pf = window.PLOT_FONTS;
+    if (!pf || typeof FontFace === "undefined") return;
+    var reg = new FontFace("PlotSans", fromBase64(pf.regular), { weight: "400" });
+    var bold = new FontFace("PlotSans", fromBase64(pf.bold), { weight: "700" });
+    return Promise.all([reg.load(), bold.load()]).then(function () {
+      document.fonts.add(reg); document.fonts.add(bold);
+      fonts.regular = pf.regular;
+      fonts.bold = pf.bold;
+      fonts.ready = true;
+    });
+  }).catch(function () { /* falls back to Arial/Helvetica */ });
+
+  function fontFaceCss() {
+    if (!fonts.ready) return "";
+    return "@font-face{font-family:PlotSans;font-weight:400;src:url(data:font/ttf;base64," + fonts.regular + ") format('truetype');}" +
+           "@font-face{font-family:PlotSans;font-weight:700;src:url(data:font/ttf;base64," + fonts.bold + ") format('truetype');}";
+  }
+
+  var measureCtx = document.createElement("canvas").getContext("2d");
+  function measure(s, size, bold) {
+    measureCtx.font = (bold ? "bold " : "") + size + "px " + (fonts.ready ? "PlotSans, " : "") + "Arial, Helvetica, sans-serif";
+    return measureCtx.measureText(s).width;
+  }
+
+  // ---------- state ----------
+  function readInputs() {
+    var age = parseFloat($("bp_age").value);
+    var err = parseFloat($("bp_error").value);
+    return {
+      id: $("sample_id").value.trim() || "Sample",
+      age: age,
+      error: err,
+      curve: $("calcurve").value,
+      calendar: document.querySelector("input[name=calendar]:checked").value,
+      bw: $("bw_mode").checked
+    };
+  }
+
+  function validate(s) {
+    var msg = "";
+    $("bp_age").removeAttribute("aria-invalid");
+    $("bp_error").removeAttribute("aria-invalid");
+    if (!isFinite(s.age) || s.age < 0) { msg = "Enter an age of 0 BP or more."; $("bp_age").setAttribute("aria-invalid", "true"); }
+    else if (!isFinite(s.error) || s.error < 1) { msg = "Enter an error of at least 1 year."; $("bp_error").setAttribute("aria-invalid", "true"); }
+    $("input_err").textContent = msg;
+    return !msg;
+  }
+
+  var current = null;   // last successful result
+  var renderToken = 0;
+
+  function update() {
+    var s = readInputs();
+    if (!validate(s)) return;
+    var token = ++renderToken;
+    loadCurve(s.curve).then(function (curve) {
+      if (token !== renderToken) return;
+      var grid;
+      try {
+        grid = C14.calibrate(s.age, s.error, curve);
+      } catch (e) {
+        showMessage(s.age + " ± " + s.error + " BP lies outside the " + CURVE_LABEL[s.curve] +
+          " curve (about " + Math.min.apply(null, curve.raw.c14) + " to " + Math.max.apply(null, curve.raw.c14) + " ¹⁴C BP). Check the age or choose another curve.");
+        current = null;
+        setDownloads(false);
+        return;
+      }
+      current = {
+        s: s, curve: curve, grid: grid,
+        hpd: C14.hpdi(grid, 0.954),
+        mean: C14.weightedMean(grid)
+      };
+      draw();
+    }).catch(function () {
+      if (token !== renderToken) return;
+      showMessage("The calibration curve could not be loaded. Check your connection and reload the page.");
+      setDownloads(false);
+    });
+  }
+
+  function svgFor(result, embedFonts) {
+    var s = result.s;
+    return CPlot.render({
+      grid: result.grid, hpd: result.hpd, mean: result.mean,
+      cra: s.age, error: s.error, id: s.id, calendar: s.calendar, bw: s.bw,
+      curve: result.curve, measure: measure, fmtYear: C14.fmtYear,
+      fontFaceCss: embedFonts ? fontFaceCss() : ""
+    });
+  }
+
+  function draw() {
+    if (!current) return;
+    var frame = $("plot");
+    frame.innerHTML = svgFor(current, false);
+    frame.setAttribute("aria-label", "Calibrated date for " + current.s.id + ": " + rangeText(current));
+    renderReadout(current);
+    setDownloads(true);
+  }
+
+  function showMessage(msg) {
+    $("plot").innerHTML = '<p class="plot-msg"></p>';
+    $("plot").firstChild.textContent = msg;
+    $("readout").hidden = true;
+  }
+
+  function yearLabel(bp, cal) { return cal === "BCAD" ? C14.fmtYear(bp) : bp + " cal BP"; }
+  function pct(p) { return (p * 100).toFixed(1) + "%"; }
+  function rangeText(r) {
+    return r.hpd.map(function (h) {
+      return yearLabel(h.startCalBP, r.s.calendar) + " to " + yearLabel(h.endCalBP, r.s.calendar) + " (" + pct(h.prob) + ")";
+    }).join("; ");
+  }
+
+  function renderReadout(r) {
+    var tb = $("ranges").tBodies[0];
+    tb.innerHTML = "";
+    r.hpd.forEach(function (h) {
+      var tr = tb.insertRow();
+      tr.insertCell().textContent = yearLabel(h.startCalBP, r.s.calendar) + " – " + yearLabel(h.endCalBP, r.s.calendar);
+      var c = tr.insertCell(); c.textContent = pct(h.prob); c.className = "p";
+    });
+    var m = tb.insertRow(); m.className = "mean";
+    m.insertCell().textContent = "Mean: " + (r.s.calendar === "BCAD" ? C14.fmtYear(r.mean) : Math.round(r.mean) + " cal BP");
+    m.insertCell();
+    $("readout_meta").textContent = r.s.id + ", " + r.s.age + " ± " + r.s.error + " BP, " + CURVE_LABEL[r.s.curve] + ".";
+    $("readout").hidden = false;
+  }
+
+  function copyText(r) {
+    return r.s.id + ": " + r.s.age + " ± " + r.s.error + " BP, calibrated with " + CURVE_LABEL[r.s.curve] +
+      " (rcarbon method). 95.4% probability: " + rangeText(r) + ". Mean: " +
+      (r.s.calendar === "BCAD" ? C14.fmtYear(r.mean) : Math.round(r.mean) + " cal BP") + ".";
+  }
+
+  // ---------- downloads ----------
+  function setDownloads(on) { ["dl_png", "dl_pdf", "dl_svg"].forEach(function (id) { $(id).disabled = !on; }); }
+
+  function baseName(s) {
+    var map = { "ı": "i", "İ": "I", "ß": "ss", "ø": "o", "Ø": "O", "æ": "ae", "Æ": "AE", "ł": "l", "Ł": "L", "đ": "d", "Đ": "D" };
+    var ascii = s.id.replace(/[ıİßøØæÆłŁđĐ]/g, function (c) { return map[c]; })
+      .normalize("NFKD").replace(/[\u0300-\u036f]/g, "");
+    return ascii.replace(/[^A-Za-z0-9]/g, "_") + "_" + s.age + "BP";
+  }
+
+  function saveBlob(blob, name) {
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement("a");
+    a.href = url; a.download = name;
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(function () { URL.revokeObjectURL(url); }, 4000);
+  }
+
+  // CRC32 for the PNG pHYs chunk
+  var crcTable = (function () {
+    var t = new Uint32Array(256);
+    for (var n = 0; n < 256; n++) { var c = n; for (var k = 0; k < 8; k++) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1; t[n] = c >>> 0; }
+    return t;
+  })();
+  function crc32(bytes) {
+    var c = 0xffffffff;
+    for (var i = 0; i < bytes.length; i++) c = crcTable[(c ^ bytes[i]) & 0xff] ^ (c >>> 8);
+    return (c ^ 0xffffffff) >>> 0;
+  }
+  function setPngDpi(buf, dpi) {
+    var src = new Uint8Array(buf);
+    var ppm = Math.round(dpi / 0.0254);
+    var chunk = new Uint8Array(21);
+    var dv = new DataView(chunk.buffer);
+    dv.setUint32(0, 9);
+    chunk.set([0x70, 0x48, 0x59, 0x73], 4);         // "pHYs"
+    dv.setUint32(8, ppm); dv.setUint32(12, ppm); chunk[16] = 1;
+    dv.setUint32(17, crc32(chunk.subarray(4, 17)));
+    var at = 33;                                     // after signature + IHDR
+    var out = new Uint8Array(src.length + 21);
+    out.set(src.subarray(0, at), 0); out.set(chunk, at); out.set(src.subarray(at), at + 21);
+    return out;
+  }
+
+  function withBusy(btn, fn) {
+    if (!current) return;
+    $("dl_err").textContent = "";
+    btn.disabled = true;
+    Promise.resolve().then(fn).catch(function (e) {
+      console.error(e);
+      $("dl_err").textContent = "The download failed. Try again, or use a different format.";
+    }).then(function () { btn.disabled = !current; });
+  }
+
+  function downloadSvg() {
+    return fontsPromise.then(function () {
+      var svg = svgFor(current, true);
+      saveBlob(new Blob(['<?xml version="1.0" encoding="UTF-8"?>\n' + svg], { type: "image/svg+xml" }), baseName(current.s) + ".svg");
+    });
+  }
+
+  function downloadPng() {
+    return fontsPromise.then(function () {
+      var svg = svgFor(current, true);
+      var url = URL.createObjectURL(new Blob([svg], { type: "image/svg+xml;charset=utf-8" }));
+      return new Promise(function (resolve, reject) {
+        var img = new Image();
+        img.onload = function () {
+          // short pause lets Safari finish decoding embedded fonts
+          setTimeout(function () {
+            var scale = 3;                              // 800 x 600 -> 2400 x 1800 px
+            var cv = document.createElement("canvas");
+            cv.width = CPlot.WIDTH * scale; cv.height = CPlot.HEIGHT * scale;
+            var ctx = cv.getContext("2d");
+            ctx.fillStyle = "#ffffff"; ctx.fillRect(0, 0, cv.width, cv.height);
+            ctx.drawImage(img, 0, 0, cv.width, cv.height);
+            URL.revokeObjectURL(url);
+            cv.toBlob(function (blob) {
+              if (!blob) return reject(new Error("toBlob failed"));
+              blob.arrayBuffer().then(function (buf) {
+                saveBlob(new Blob([setPngDpi(buf, 300)], { type: "image/png" }), baseName(current.s) + ".png");
+                resolve();
+              }, reject);
+            }, "image/png");
+          }, 60);
+        };
+        img.onerror = function () { URL.revokeObjectURL(url); reject(new Error("image load failed")); };
+        img.src = url;
       });
-    </script>
-    <link rel="stylesheet" href="./shinylive/style-resets.css" />
-    <link rel="stylesheet" href="./shinylive/shinylive.css" />
-    
-  </head>
-  <body>
-    
-    <div style="height: 100vh; width: 100vw" id="root"></div>
-    
-  </body>
+    });
+  }
+
+  var pdfLibs = null;
+  function loadScript(src) {
+    return new Promise(function (resolve, reject) {
+      var s = document.createElement("script");
+      s.src = src; s.onload = resolve; s.onerror = reject;
+      document.head.appendChild(s);
+    });
+  }
+  function loadPdfLibs() {
+    if (!pdfLibs) {
+      pdfLibs = loadScript("vendor/jspdf.umd.min.js")
+        .then(function () { return loadScript("vendor/svg2pdf.umd.min.js"); })
+        .catch(function (e) { pdfLibs = null; throw e; });
+    }
+    return pdfLibs;
+  }
+
+  function downloadPdf() {
+    return Promise.all([fontsPromise, loadPdfLibs()]).then(function () {
+      var jsPDF = window.jspdf.jsPDF;
+      var wPt = CPlot.WIDTH * 0.72, hPt = CPlot.HEIGHT * 0.72;   // 8 x 6 in
+      var doc = new jsPDF({ orientation: "landscape", unit: "pt", format: [wPt, hPt], compress: true });
+      if (fonts.ready) {
+        doc.addFileToVFS("PlotSans-Regular.ttf", fonts.regular);
+        doc.addFont("PlotSans-Regular.ttf", "PlotSans", "normal");
+        doc.addFileToVFS("PlotSans-Bold.ttf", fonts.bold);
+        doc.addFont("PlotSans-Bold.ttf", "PlotSans", "bold");
+      }
+      doc.setProperties({ title: current.s.id + " (" + current.s.age + " ± " + current.s.error + " BP)", creator: "C-Turkey Radiocarbon Calibration Tool" });
+      var holder = document.createElement("div");
+      holder.style.cssText = "position:fixed;left:-10000px;top:0;width:800px;height:600px;";
+      holder.innerHTML = svgFor(current, false);
+      document.body.appendChild(holder);
+      return doc.svg(holder.firstChild, { x: 0, y: 0, width: wPt, height: hPt }).then(function () {
+        holder.remove();
+        doc.save(baseName(current.s) + ".pdf");
+      }, function (e) { holder.remove(); throw e; });
+    });
+  }
+
+  // ---------- wiring ----------
+  var timer = null;
+  function scheduleUpdate() { clearTimeout(timer); timer = setTimeout(update, 120); }
+
+  ["sample_id", "bp_age", "bp_error"].forEach(function (id) { $(id).addEventListener("input", scheduleUpdate); });
+  ["calcurve", "bw_mode", "cal_bcad", "cal_bp"].forEach(function (id) { $(id).addEventListener("change", update); });
+  $("dl_png").addEventListener("click", function () { withBusy(this, downloadPng); });
+  $("dl_pdf").addEventListener("click", function () { withBusy(this, downloadPdf); });
+  $("dl_svg").addEventListener("click", function () { withBusy(this, downloadSvg); });
+  $("copy_btn").addEventListener("click", function () {
+    if (!current) return;
+    var btn = this, txt = copyText(current);
+    (navigator.clipboard ? navigator.clipboard.writeText(txt) : Promise.reject()).then(function () {
+      btn.textContent = "Copied";
+      setTimeout(function () { btn.textContent = "Copy results"; }, 1600);
+    }, function () { window.prompt("Copy the results:", txt); });
+  });
+
+  setDownloads(false);
+  update();
+  // Redraw once the figure font is ready, so legend spacing uses its metrics.
+  fontsPromise.then(function () { if (current) draw(); });
+})();
+</script>
+</body>
 </html>
